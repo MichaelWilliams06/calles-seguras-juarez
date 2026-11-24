@@ -1,0 +1,16 @@
+# Entornos y secretos (NUNCA se suben)
+.venv/
+venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+
+# Editores y sistema
+.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db

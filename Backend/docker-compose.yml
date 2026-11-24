@@ -1,0 +1,17 @@
+# PostgreSQL local para la Unidad 4.
+# Uso: docker compose up -d     Detener: docker compose down
+services:
+  db:
+    image: postgres:16
+    container_name: pg-u4
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: u4local
+      POSTGRES_DB: tienda
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

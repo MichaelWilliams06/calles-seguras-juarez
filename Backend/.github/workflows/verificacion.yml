@@ -1,0 +1,82 @@
+# Verificación automática (NO es la calificación).
+# Revisa que tu repositorio esté sano en cada push: NC configurado, sin secretos,
+# código que compila, migraciones que se aplican y API que arranca.
+name: Verificación U4
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: u4local
+          POSTGRES_DB: tienda
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:u4local@localhost:5432/tienda
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: NC con formato YY11NNNN en app/main.py
+        run: |
+          python - <<'PY'
+          import re, sys
+          src = open("app/main.py", encoding="utf-8").read()
+          m = re.search(r'^NC\s*=\s*"([^"]*)"', src, re.M)
+          if not m or not re.fullmatch(r"\d{2}11\d{4}", m.group(1)):
+              print("::error file=app/main.py::Escribe tu número de control real (formato YY11NNNN) en NC")
+              sys.exit(1)
+          print(f"NC = {m.group(1)}")
+          PY
+
+      - name: Sin entornos virtuales ni .env en el repositorio
+        run: |
+          if git ls-files | grep -E '(^|/)(\.venv|venv)/|(^|/)\.env$'; then
+            echo "::error::Se subieron archivos prohibidos (.venv/ o .env). Bórralos del repositorio con git rm --cached."
+            exit 1
+          fi
+
+      - name: El código compila
+        run: python -m compileall -q app ejercicios
+
+      - name: Migraciones de Alembic (desde E6)
+        run: |
+          if [ ! -f alembic.ini ]; then
+            echo "::notice::Aún no hay alembic.ini (se crea en E6)."
+            exit 0
+          fi
+          alembic upgrade head
+          n=$(ls alembic/versions/*.py 2>/dev/null | wc -l)
+          echo "Migraciones encontradas: $n"
+          if [ "$n" -lt 2 ]; then
+            echo "::warning::E6 pide al menos 2 migraciones (crear tabla y agregar categoria)."
+          fi
+
+      - name: La API arranca y responde /salud
+        run: |
+          uvicorn app.main:app --port 8000 &
+          for i in $(seq 1 20); do
+            curl -fs http://127.0.0.1:8000/salud && exit 0
+            sleep 1
+          done
+          echo "::error::La API no respondió en /salud"
+          exit 1
