@@ -37,18 +37,34 @@ const MOTIVOS_RECHAZO = [
   'No corresponde a daño vial o encharcamiento',
 ];
 
-const ESTADOS_AVANCE = ['Programado', 'En reparación', 'Reparado'];
+const ESTADOS_AVANCE = ['Asignado', 'Reparado'];
 
 const ESTADOS_SEGUIMIENTO_PAVIMENTO = [
   'Recibido',
-  'Validado',
-  'Programado',
-  'En reparación',
+  'En revisión',
+  'Asignado',
   'Reparado',
   'Rechazado',
 ];
 
-const ESTADOS_SEGUIMIENTO_ENCHARCAMIENTO = ['Activo', 'Resuelto', 'Cerrado'];
+const ESTADOS_SEGUIMIENTO_ENCHARCAMIENTO = ['Activo', 'Resuelto', 'Descartado'];
+
+function calcularDistanciaMetros(
+  lat1?: number,
+  lon1?: number,
+  lat2?: number,
+  lon2?: number
+): number | null {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 
 function authHeaders(): HeadersInit {
   const token = localStorage.getItem('csj_token');
@@ -94,13 +110,13 @@ async function obtenerReportesApi(): Promise<ReporteApi[]> {
 
 async function enviarDictamenValidacion(
   reporte: ReporteModeracion,
-  accion: 'Validado' | 'Rechazado',
+  accion: 'En revisión' | 'Rechazado',
   motivo: string,
   comentario: string
 ): Promise<ReporteApi> {
   const notaFinal =
     comentario.trim() ||
-    (accion === 'Rechazado' ? `Rechazado: ${motivo}` : 'Validado por moderación');
+    (accion === 'Rechazado' ? `Rechazado: ${motivo}` : 'Validado por moderación (En revisión)');
 
   const esPavimento = reporte.kind === 'pavimento';
   const endpoint = esPavimento
@@ -113,7 +129,7 @@ async function enviarDictamenValidacion(
         comentario_publico: notaFinal,
       }
     : {
-        estado: accion === 'Rechazado' ? 'Cerrado' : 'Activo',
+        estado: accion === 'Rechazado' ? 'Descartado' : 'Activo',
       };
 
   const res = await fetch(endpoint, {
@@ -271,9 +287,7 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
       reportes.filter(
         (r) =>
           r.kind === 'pavimento' &&
-          ['validado', 'programado', 'en reparación', 'en reparacion'].includes(
-            r.estado.toLowerCase()
-          )
+          ['en revisión', 'en revision', 'asignado'].includes(r.estado.toLowerCase())
       ),
     [reportes]
   );
@@ -295,7 +309,7 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
 
   const handleDictamen = async (
     reporte: ReporteModeracion,
-    accion: 'Validado' | 'Rechazado'
+    accion: 'En revisión' | 'Rechazado'
   ) => {
     const clave = claveReporte(reporte);
     const motivo = motivosPorClave[clave] || MOTIVOS_RECHAZO[0];
@@ -308,7 +322,7 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
       const actualizado = await enviarDictamenValidacion(reporte, accion, motivo, comentario);
       const notaGuardada =
         comentario.trim() ||
-        (accion === 'Rechazado' ? `Rechazado: ${motivo}` : 'Validado por moderación');
+        (accion === 'Rechazado' ? `Rechazado: ${motivo}` : 'Validado por moderación (En revisión)');
 
       setReportes((previos) => {
         const existe = previos.some((p) => claveReporte(p) === clave);
@@ -332,7 +346,7 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
 
   const handleAvance = async (reporte: ReporteModeracion) => {
     const clave = claveReporte(reporte);
-    const siguienteEstado = estadoAvancePorClave[clave] || 'Programado';
+    const siguienteEstado = estadoAvancePorClave[clave] || 'Asignado';
     const comentario = comentariosPorClave[clave] || '';
 
     if (!comentario.trim()) {
@@ -510,6 +524,28 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
                 <div style={{ display: 'grid', gap: '1rem', marginTop: '0.75rem' }}>
                   {pendientesValidacion.map((rep) => {
                     const clave = claveReporte(rep);
+                    const posiblesDuplicados = reportes.filter((otro) => {
+                      if (otro.id === rep.id && otro.kind === rep.kind) return false;
+                      if (otro.kind !== rep.kind) return false;
+                      if (['rechazado', 'descartado'].includes(otro.estado.toLowerCase())) {
+                        return false;
+                      }
+
+                      const dist = calcularDistanciaMetros(
+                        rep.latitud,
+                        rep.longitud,
+                        otro.latitud,
+                        otro.longitud
+                      );
+                      const umbral = rep.kind === 'pavimento' ? 30 : 50;
+                      if (dist !== null && dist <= umbral) return true;
+
+                      return (
+                        rep.colonia_id === otro.colonia_id &&
+                        rep.calle.trim().toLowerCase() === otro.calle.trim().toLowerCase()
+                      );
+                    });
+
                     return (
                       <article
                         key={clave}
@@ -536,6 +572,24 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
                             <b>{rep.estado}</b>
                           </span>
                         </div>
+
+                        {posiblesDuplicados.length > 0 && (
+                          <div
+                            role="status"
+                            style={{
+                              marginTop: '0.6rem',
+                              padding: '0.5rem 0.75rem',
+                              background: '#fef3c7',
+                              border: '1px solid #f59e0b',
+                              borderRadius: '6px',
+                              color: '#92400e',
+                              fontSize: '0.88rem',
+                            }}
+                          >
+                            ⚠️ <b>Posible duplicado:</b> coincide con{' '}
+                            {posiblesDuplicados.map((d) => `${d.folio} (${d.estado})`).join(', ')}.
+                          </div>
+                        )}
 
                         <div
                           style={{
@@ -609,7 +663,7 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
                               type="button"
                               className="btn sm"
                               disabled={procesandoClave === clave}
-                              onClick={() => handleDictamen(rep, 'Validado')}
+                              onClick={() => handleDictamen(rep, 'En revisión')}
                             >
                               Validar
                             </button>
@@ -643,7 +697,7 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
                     border: '1px solid #d6d3c9',
                   }}
                 >
-                  No hay reportes de pavimento validados o en reparación activos en este momento.
+                  No hay reportes de pavimento en revisión o asignados en este momento.
                 </p>
               ) : (
                 <div style={{ display: 'grid', gap: '1rem', marginTop: '0.75rem' }}>
@@ -698,7 +752,7 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
                             </label>
                             <select
                               id={`estado-${clave}`}
-                              value={estadoAvancePorClave[clave] || 'Programado'}
+                              value={estadoAvancePorClave[clave] || 'Asignado'}
                               onChange={(e) =>
                                 setEstadoAvancePorClave((prev) => ({
                                   ...prev,
@@ -793,14 +847,13 @@ export const ModeracionPage: React.FC<Props> = ({ seccionInicial = 'validar' }) 
                 >
                   <option value="Todos">Todos los estados</option>
                   <option value="Recibido">Recibido</option>
-                  <option value="Validado">Validado</option>
-                  <option value="Programado">Programado</option>
-                  <option value="En reparación">En reparación</option>
+                  <option value="En revisión">En revisión</option>
+                  <option value="Asignado">Asignado</option>
                   <option value="Reparado">Reparado</option>
                   <option value="Rechazado">Rechazado</option>
                   <option value="Activo">Activo (Encharcamiento)</option>
                   <option value="Resuelto">Resuelto (Encharcamiento)</option>
-                  <option value="Cerrado">Cerrado (Encharcamiento)</option>
+                  <option value="Descartado">Descartado (Encharcamiento)</option>
                 </select>
               </div>
 
