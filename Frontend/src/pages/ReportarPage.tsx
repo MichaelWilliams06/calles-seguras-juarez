@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { registrarMiFolio } from './MisReportesPage';
 import { api } from '../services/api';
 import type {
   Colonia,
@@ -150,7 +151,7 @@ async function geocodificarEnJuarez(
   return null;
 }
 
-export const ReportarPage: React.FC<Props> = ({ kind }) => {
+export const ReportarPage: React.FC<Props> = ({ kind, rol }) => {
   const navigate = useNavigate();
   const [colonias, setColonias] = useState<Colonia[]>([]);
   const [coloniaId, setColoniaId] = useState<number | ''>('');
@@ -185,6 +186,10 @@ export const ReportarPage: React.FC<Props> = ({ kind }) => {
 
   const destinoTrasEnvio = '/';
 
+  const tieneSesion =
+    Boolean(localStorage.getItem('csj_token')) &&
+    Boolean(rol && String(rol).toLowerCase() !== 'visitante');
+
   const cargarColonias = useCallback(() => {
     setCargandoColonias(true);
     setErrorColonias(null);
@@ -208,8 +213,9 @@ export const ReportarPage: React.FC<Props> = ({ kind }) => {
   }, []);
 
   useEffect(() => {
+    if (!tieneSesion) return;
     cargarColonias();
-  }, [cargarColonias]);
+  }, [tieneSesion, cargarColonias]);
 
   const coloniaSeleccionada = colonias.find((c) => c.id_colonia === Number(coloniaId));
 
@@ -256,6 +262,7 @@ export const ReportarPage: React.FC<Props> = ({ kind }) => {
 
   // Geocodifica automáticamente con debounce al escribir la calle o cambiar de colonia
   useEffect(() => {
+    if (!tieneSesion) return;
     if (calle.trim().length < 3 && !coloniaSeleccionada?.nombre) return;
 
     const timer = window.setTimeout(() => {
@@ -263,7 +270,28 @@ export const ReportarPage: React.FC<Props> = ({ kind }) => {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [calle, coloniaSeleccionada?.nombre, resolverCoordenadasPorDireccion]);
+  }, [tieneSesion, calle, coloniaSeleccionada?.nombre, resolverCoordenadasPorDireccion]);
+
+  if (!tieneSesion) {
+    return (
+      <section aria-labelledby="titulo-acceso-reportar" className="panel" style={{ textAlign: 'center' }}>
+        <p className="eyebrow">Acceso restringido a usuarios autenticados</p>
+        <h1 id="titulo-acceso-reportar">Inicia sesión para crear un reporte</h1>
+        <p className="sub">
+          Los visitantes pueden consultar reportes activos y revisar su zona, pero no pueden crear
+          reportes sin iniciar sesión.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1rem' }}>
+          <button type="button" className="btn" onClick={() => navigate('/login')}>
+            Iniciar sesión
+          </button>
+          <button type="button" className="btn secondary" onClick={() => navigate('/registro')}>
+            Crear cuenta
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   const usarUbicacionDispositivo = () => {
     setError(null);
@@ -299,6 +327,11 @@ export const ReportarPage: React.FC<Props> = ({ kind }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!tieneSesion) {
+      setError('Debes iniciar sesión para crear reportes.');
+      return;
+    }
 
     const lat = Number(latitud);
     const lng = Number(longitud);
@@ -343,7 +376,7 @@ export const ReportarPage: React.FC<Props> = ({ kind }) => {
       }
 
       if (kind === 'pavimento') {
-        await api.crearBache({
+        const creado = await api.crearBache({
           id_colonia: Number(coloniaId),
           calle: calle.trim(),
           latitud: lat,
@@ -356,8 +389,11 @@ export const ReportarPage: React.FC<Props> = ({ kind }) => {
           severidad: tipoDano === 'alcantarilla_sin_tapa' ? 'Alta' : 'Media',
           senalizado: tipoDano === 'alcantarilla_sin_tapa' ? senalizado : null,
         });
+        if (creado?.folio) {
+          registrarMiFolio(creado.folio);
+        }
       } else {
-        await api.crearEncharcamiento({
+        const creado = await api.crearEncharcamiento({
           id_colonia: Number(coloniaId),
           calle: calle.trim(),
           latitud: lat,
@@ -366,6 +402,9 @@ export const ReportarPage: React.FC<Props> = ({ kind }) => {
           nivel_agua: nivelAgua,
           riesgo_alto: nivelAgua === 'intransitable' ? riesgoAlto === 'si' : false,
         });
+        if (creado?.folio) {
+          registrarMiFolio(creado.folio);
+        }
       }
 
       navigate(destinoTrasEnvio);

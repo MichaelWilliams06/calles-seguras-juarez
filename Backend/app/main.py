@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, HTTPException, Path, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+from pydantic import BaseModel
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -43,6 +44,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class UsuarioAdminActualizar(BaseModel):
+    rol: str | None = None
+    activo: bool | None = None
 
 
 def _rol_str(usuario: Usuario) -> str:
@@ -142,6 +148,51 @@ def iniciar_sesion(datos: UsuarioLogin, db: Session = Depends(get_db)):
 @app.get("/api/auth/me", response_model=UsuarioRespuesta)
 def perfil_actual(usuario: Usuario = Depends(obtener_usuario_actual)):
     return _usuario_a_respuesta(usuario)
+
+
+@app.get("/api/usuarios", response_model=list[UsuarioRespuesta])
+def listar_usuarios(
+    _admin: Usuario = Depends(exigir_roles("Administrador")),
+    db: Session = Depends(get_db),
+):
+    usuarios = db.scalars(select(Usuario).order_by(Usuario.id_usuario.asc())).all()
+    return [_usuario_a_respuesta(u) for u in usuarios]
+
+
+@app.patch("/api/usuarios/{usuario_id}", response_model=UsuarioRespuesta)
+def actualizar_usuario_admin(
+    usuario_id: int = Path(..., ge=1),
+    datos: UsuarioAdminActualizar = ...,
+    admin: Usuario = Depends(exigir_roles("Administrador")),
+    db: Session = Depends(get_db),
+):
+    roles_validos = {
+        "Ciudadano",
+        "Moderador",
+        "Coordinador",
+        "Enlace_Municipal",
+        "Administrador",
+    }
+    objetivo = db.get(Usuario, usuario_id)
+    if not objetivo:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    if datos.rol is not None:
+        if datos.rol not in roles_validos:
+            raise HTTPException(status_code=422, detail="Rol no válido.")
+        objetivo.rol = datos.rol
+
+    if datos.activo is not None:
+        if objetivo.id_usuario == admin.id_usuario and not datos.activo:
+            raise HTTPException(
+                status_code=400,
+                detail="No puedes desactivar tu propia cuenta administrativa.",
+            )
+        objetivo.activo = datos.activo
+
+    db.commit()
+    db.refresh(objetivo)
+    return _usuario_a_respuesta(objetivo)
 
 
 # --- Colonias ---

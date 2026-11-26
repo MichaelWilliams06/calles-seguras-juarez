@@ -1,4 +1,4 @@
-import React from 'react';
+ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import type { RolUsuario } from '../types';
 
@@ -7,18 +7,26 @@ interface Props {
   onLogout?: () => void;
 }
 
-const ETIQUETA_ROL: Record<RolUsuario, string> = {
+const ETIQUETA_ROL: Record<string, string> = {
   visitante: 'Visitante',
-  Ciudadano: 'Ciudadano',
-  Moderador: 'Moderador',
-  Coordinador: 'Coordinador',
-  Enlace_Municipal: 'Enlace Municipal',
-  Administrador: 'Administrador',
+  ciudadano: 'Ciudadano',
+  moderador: 'Moderador',
+  coordinador: 'Coordinador',
+  enlace_municipal: 'Enlace Municipal',
+  administrador: 'Administrador',
 };
 
 export const Navbar: React.FC<Props> = ({ rol, onLogout }) => {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     isActive ? 'on' : undefined;
+
+  const rolNormalizado = String(rol || 'visitante').toLowerCase();
+  const esVisitante = rolNormalizado === 'visitante';
+  const esCiudadano = rolNormalizado === 'ciudadano';
+  const esModerador = rolNormalizado === 'moderador';
+  const esCoordinador = rolNormalizado === 'coordinador';
+  const esAdministrador = rolNormalizado === 'administrador';
+  const esEnlace = rolNormalizado === 'enlace_municipal';
 
   return (
     <header className="app">
@@ -29,8 +37,8 @@ export const Navbar: React.FC<Props> = ({ rol, onLogout }) => {
           <span>Baches y encharcamientos</span>
         </div>
         <div className="top-act">
-          <span className="sans">Rol: {ETIQUETA_ROL[rol]}</span>
-          {rol !== 'visitante' ? (
+          <span className="sans">Rol: {ETIQUETA_ROL[rolNormalizado] || rol}</span>
+          {!esVisitante ? (
             <button
               type="button"
               className="btn sm secondary"
@@ -61,30 +69,44 @@ export const Navbar: React.FC<Props> = ({ rol, onLogout }) => {
           <li><NavLink to="/" end className={linkClass}>Reportes activos</NavLink></li>
           <li><NavLink to="/mi-zona" className={linkClass}>¿Cómo está mi zona?</NavLink></li>
 
-          {(rol === 'visitante' || rol === 'Ciudadano') && (
+          {esModerador ? (
             <>
-              <li><NavLink to="/reportar-bache" className={linkClass}>Reportar bache</NavLink></li>
-              <li><NavLink to="/reportar-encharcamiento" className={linkClass}>Reportar encharcamiento</NavLink></li>
-            </>
-          )}
-
-          {rol === 'Ciudadano' && (
-            <li><NavLink to="/mis-reportes" className={linkClass}>Mis reportes</NavLink></li>
-          )}
-
-          {(rol === 'Moderador' || rol === 'Coordinador' || rol === 'Administrador') && (
-            <li><NavLink to="/moderacion" className={linkClass}>Moderación</NavLink></li>
-          )}
-
-          {(rol === 'Coordinador' || rol === 'Administrador') && (
-            <>
-              <li><NavLink to="/tablero" className={linkClass}>Tablero</NavLink></li>
               <li><NavLink to="/colonias" className={linkClass}>Colonias</NavLink></li>
+              <li><NavLink to="/moderacion" end className={linkClass}>Validar / Rechazar</NavLink></li>
+              <li><NavLink to="/moderacion/avances" className={linkClass}>Avances de reparación</NavLink></li>
+              <li><NavLink to="/moderacion/seguimiento" className={linkClass}>Reportes en seguimiento</NavLink></li>
             </>
-          )}
+          ) : (
+            <>
+              {esCiudadano && (
+                <>
+                  <li><NavLink to="/reportar-bache" className={linkClass}>Reportar bache</NavLink></li>
+                  <li><NavLink to="/reportar-encharcamiento" className={linkClass}>Reportar encharcamiento</NavLink></li>
+                  <li><NavLink to="/mis-reportes" className={linkClass}>Mis reportes</NavLink></li>
+                </>
+              )}
 
-          {rol === 'Enlace_Municipal' && (
-            <li><NavLink to="/tablero" className={linkClass}>Tablero</NavLink></li>
+              {esCoordinador && (
+                <>
+                  <li><NavLink to="/moderacion" className={linkClass}>Moderación</NavLink></li>
+                  <li><NavLink to="/tablero" className={linkClass}>Tablero</NavLink></li>
+                  <li><NavLink to="/colonias" className={linkClass}>Colonias</NavLink></li>
+                </>
+              )}
+
+              {esAdministrador && (
+                <>
+                  <li><NavLink to="/moderacion" className={linkClass}>Moderación</NavLink></li>
+                  <li><NavLink to="/tablero" className={linkClass}>Tablero</NavLink></li>
+                  <li><NavLink to="/colonias" className={linkClass}>Colonias</NavLink></li>
+                  <li><NavLink to="/usuarios" className={linkClass}>Usuarios y roles</NavLink></li>
+                </>
+              )}
+
+              {esEnlace && (
+                <li><NavLink to="/tablero" className={linkClass}>Tablero</NavLink></li>
+              )}
+            </>
           )}
         </ul>
       </nav>

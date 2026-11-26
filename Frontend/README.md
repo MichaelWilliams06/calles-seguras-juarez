@@ -1,75 +1,31 @@
-# React + TypeScript + Vite
+# Calles Seguras Juárez
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Plataforma web ciudadana para el reporte, consulta, validación, moderación y seguimiento de incidencias viales —baches, hundimientos, grietas, alcantarillas sin tapa y encharcamientos— en **Ciudad Juárez, Chihuahua**.
 
-Currently, two official plugins are available:
+El sistema permite a la ciudadanía consultar problemas activos sin fricción, confirmar incidencias existentes, evaluar el estado de su zona y reportar nuevas ubicaciones dentro del municipio, mientras que los equipos operativos (`Moderador`, `Coordinador`, `Enlace_Municipal` y `Administrador`) gestionan la validación, el avance de reparación, los catálogos territoriales, los indicadores y el control de accesos.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## Equipo de Desarrollo
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Proyecto desarrollado en el **Instituto Tecnológico de Ciudad Juárez** (Ingeniería en Sistemas Computacionales):
 
-## Expanding the ESLint configuration
+| Integrante | Número de control | Institución |
+| :--- | :---: | :--- |
+| **Liam Michael Williams Alcazar** | `22111724` | Instituto Tecnológico de Ciudad Juárez |
+| **Daniel Eduardo Silva Lopez** | `21111099` | Instituto Tecnológico de Ciudad Juárez |
+| **Ricardo Daniel García García** | `21111136` | Instituto Tecnológico de Ciudad Juárez |
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Arquitectura y Stack Tecnológico
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+El proyecto está organizado como un monorepo con separación clara entre API, interfaz web, infraestructura y documentación:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+```text
+Programa_Web_Final/
+├── Backend/          # API REST en Python + FastAPI, SQLAlchemy, Alembic, Pydantic y seguridad JWT / Argon2id
+├── Frontend/         # Aplicación SPA en React, TypeScript, React Router y Vite
+├── infra/            # Definición de servicios y despliegue con Docker Compose
+├── docs/             # Documentación técnica y reporte de evidencias (REPORTE.pdf)
+└── README.md
